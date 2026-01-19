@@ -1,0 +1,19 @@
+# CITATION.cff (Compliant with CFF v1.2.0 specification)
+cff-version: 1.2.0
+message: "If you use this artifact in your research, please cite this artifact. The associated research paper is currently under review, and full citation information will be updated upon publication."
+authors:
+  - family-names: Zhao
+    given-names: Chun-Sheng
+    affiliation: ""  
+  - family-names: Wong
+    given-names: Li-Pei
+    affiliation: ""
+  - family-names: Fung
+    given-names: Chey
+    affiliation: ""
+title: "Solving multi-depot closed-path multiple traveling salesman problem using k-means++ hierarchical clustering and neural combinatorial networks"
+version: 1.0.0
+date-released: 2025-12-13
+url: "https://github.com/Zhao-Chunsheng/MDCP-MTSP-KHC-NCN.git"
+repository-code: "https://github.com/Zhao-Chunsheng/MDCP-MTSP-KHC-NCN.git"
+license: MIT
