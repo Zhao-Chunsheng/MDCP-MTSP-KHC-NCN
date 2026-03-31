@@ -5,23 +5,15 @@ from joblib import Parallel, delayed
 from scipy.spatial.distance import cdist
 
 
-
-## param:
-## keepClusterCount: 
-##      True, keep the length of clusters, if a cluster has only one node, then select one nearest node from other clusters to merge into this cluster
-##      False, if a cluster has only one node, then merge this node into the nearest cluster
-## Clusters: like [{'points':[[x,y],[x,y],...],'centroid':[x,y]},{'points':[[x,y],[x,y],...],'centroid':[x,y]},...]
-##      Clusters is a list.
-##      Each element is a dict, which contains the points of each cluster and the centroid of the cluster. 
-def cluster_tuning_for_one_node_cluster(clusters,keepClusterCount=True):
-    if keepClusterCount:
+def cluster_tuning_for_one_node_cluster(clusters,isFirstLevelCluster=True):
+    if isFirstLevelCluster:
         
         while True:
-            has_one_node_cluster=False
+            hasSingletonCluster=False
 
             for i in range(len(clusters)):
                 if len(clusters[i]['points']) == 1:
-                    has_one_node_cluster=True
+                    hasSingletonCluster=True
                     distances = []
                     for j in range(len(clusters)):
                         if i == j:
@@ -43,15 +35,15 @@ def cluster_tuning_for_one_node_cluster(clusters,keepClusterCount=True):
                         clusters[i]['centroid'] = np.mean(clusters[i]['points'], axis=0)
                         clusters[nearest_cluster_idx]['centroid'] = np.mean(clusters[nearest_cluster_idx]['points'], axis=0)
             
-            if not has_one_node_cluster:
+            if not hasSingletonCluster:
                 break
             
     else:
         while True:
-            has_one_node_cluster=False
+            hasSingletonCluster=False
             for i in range(len(clusters)):
                 if len(clusters[i]['points']) == 1:
-                    has_one_node_cluster=True
+                    hasSingletonCluster=True
                     # find the nearest nodes and its cluster
                     distances = []
                     for j in range(len(clusters)):
@@ -72,22 +64,18 @@ def cluster_tuning_for_one_node_cluster(clusters,keepClusterCount=True):
 
                         ## recalcuate the centroid of the nearest cluster
                         clusters[nearest_cluster_idx]['centroid'] = np.mean(clusters[nearest_cluster_idx]['points'], axis=0)
-                if has_one_node_cluster:
+                if hasSingletonCluster:
                     break
 
-            if not has_one_node_cluster:
+            if not hasSingletonCluster:
                 break
     
     return clusters
 
     
-
-## param data, 2d numpy array
-## return: clusters, list[dict,dict,...], each dict contains two keys: 'points' and 'centroid'
-## clusters = [{'points':[[x,y],[x,y],...],'centroid':[x,y]},{'points':[[x,y],[x,y],...],'centroid':[x,y]},...]
-def k_means_plusplus_clustering_sklearn(data, k, max_iterations=100, n_jobs=-1):
+def k_means_plusplus_clustering_sklearn(data, k, max_iterations=100, n_jobs=-1, random_seed=1234):
     # Create a KMeans instance with K-means++ initialization and other specified parameters
-    kmeans = KMeans(n_clusters=k, init='k-means++', max_iter=max_iterations, random_state=42)
+    kmeans = KMeans(n_clusters=k, init='k-means++', max_iter=max_iterations, random_state=random_seed)
     
     # Fit the model to the data
     kmeans.fit(data)

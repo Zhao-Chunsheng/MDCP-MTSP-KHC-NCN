@@ -19,20 +19,12 @@ def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list
         print("data_file is None. return None")
         return None
     
-    # get timestamp in format YYYYMMDDHHMMSS
-    
+        
     timestamp=time.strftime("%Y%m%d%H%M%S", time.localtime())
-
-    # modify k_list for obtaining accurate execution time.
     k_list=[k_list[0]] + k_list
-    
-
-    ## get the pure file name, without path and suffix
     data_file_name=data_file.split('/')[-1][0:-4]
     
     mtsp_data_file_list=[data_file]
-
-   ## end2end model fixed to be tsp50 model.
 
     # load config parameters
     config=HyperparametersConfig("config.ini")
@@ -65,14 +57,15 @@ def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list
 
                 ### load data only once. 
                 data=np.array(data)
-                clusters=k_means_plusplus_clustering_sklearn(data, k, max_iterations=config.max_clustering_iter, n_jobs=config.n_jobs)
-                ### tuning the clusters, make sure each cluster has at least 2 points.
+                random_seed=int(time.time())
+                clusters=k_means_plusplus_clustering_sklearn(data, k, max_iterations=config.max_clustering_iter, n_jobs=config.n_jobs, random_seed=random_seed)
+                ### Refine clusters by resolving singletons
                 clusters=cluster_tuning_for_one_node_cluster(clusters,True)
 
 
-                cluster_data_list=[]  # each element is a numpy array, 2d, [[x,y],[x,y],...]
+                cluster_data_list=[]  
                 for c in clusters:
-                    cluster_data_list.append(np.copy(c["points"]))  # copy the data, so that the original data will not be changed 
+                    cluster_data_list.append(np.copy(c["points"]))  
 
                 try:
                     if config.pre_normalization:
@@ -119,8 +112,6 @@ def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list
                     print("cluster size:{}".format(len(r)))
                 print("----------end cluster sizes---------------")
                 
-
-                # save to list
                 fixed_k_scaling_factor_result.append(total_distance)
             
             # save to list
@@ -134,20 +125,17 @@ def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list
                 fixed_k_time_consumed_list.append(sum(with_alpha_time_consumed_list)/len(with_alpha_time_consumed_list))
         
         each_mstp_each_k_time_consumed_list.append(fixed_k_time_consumed_list)
-
     
-    # convert to numpy array
     different_k_result=np.array(different_k_result)
     
     # save to excel file
     excel=openpyxl.Workbook()
 
     for mtspIndex,mtsp in enumerate(mtsp_data_file_list):
-        sheet=excel.create_sheet(mtsp.split('/')[-1][0:-4])
+        sheet=excel.create_sheet(mtsp.split('/')[-1][0:-4], index=0)
         for row in range(1,len(different_k_result)):
             sheet.cell(row=1,column=row+1,value="k={}".format(k_list[row]))
             for col in range(len(different_k_result[row])):
-                # sheet.cell(row=2+col,column=1,value="alpha={}".format((col+1)/10))
                 sheet.cell(row=2+col,column=1,value="alpha={}".format(alpha_list[col]))
                 sheet.cell(row=2+col,column=row+1,value=different_k_result[row][col])
             
@@ -155,8 +143,7 @@ def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list
             sheet.cell(row=2+len(alpha_list),column=1,value="Time")
             sheet.cell(row=2+len(alpha_list),column=1+row,value=each_mstp_each_k_time_consumed_list[mtspIndex][row])
     
-    # save the excel file
-    
+    # save the excel file    
     if log_tag is not None:
         excel_file_name="log/"+data_file_name+"_"+log_tag+"_result_"+timestamp+".xlsx"
     else:

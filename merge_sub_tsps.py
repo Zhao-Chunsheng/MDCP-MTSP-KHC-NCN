@@ -10,12 +10,38 @@ def distance(point1,point2):
     return np.linalg.norm(point1-point2)
 
 
-# param
-#   clusters: a list, each element is a cluster, each cluster is a dict, containing the following keys: sorted_tsp_data, center, tour, duration
-#   strategy: "farestInsertion","nearestInsertion","randomInsertion" or "tsp"
+def tour_merging(clusters, strategy="farestInsertion"):
+    #if clusters has no more than 3 cluster, then do not sort.
+    sorted_clusters=[]
+
+    if len(clusters) <= 3:
+        sorted_clusters=clusters
+    else:
+        cluster_centers=[]
+        for c in clusters:
+            cluster_centers.append(c["center"])
+        merge_index=farthest_insertion_2d_tsp(cluster_centers)
+        for i in range(len(clusters)):
+            sorted_clusters.append(clusters[merge_index[i]])
+    
+    while len(sorted_clusters) > 1:
+        # merge the first two clusters.
+        new_cluster=merge_two_cluster_tours(sorted_clusters[0],sorted_clusters[1])
+
+        # remove the first two clusters
+        sorted_clusters.pop(0)
+        sorted_clusters.pop(0)
+        # insert the new cluster at index 0
+        sorted_clusters.insert(0,new_cluster)
+
+    return sorted_clusters[0]["sorted_tsp_data"]
+
+
+
 def merge_sub_tsps(clusters, strategy="farestInsertion"):
     strategy=strategy.lower()
     if strategy=="farestinsertion" or strategy=="farest_insertion":
+        # Tour merging procedure
         merge_index=merge_sub_tsps_by_farthest_insertion(clusters)
         # merge_index indicates the visiting order of the cluseters.
     
@@ -38,39 +64,86 @@ def merge_sub_tsps(clusters, strategy="farestInsertion"):
 
 
 
+def find_nearest_inter_tour_nodes(tour1,tour2):
+    distances=np.zeros((len(tour1),len(tour2)))
+    for i in range(len(tour1)):
+        for j in range(len(tour2)):
+            distances[i,j]=distance(tour1[i],tour2[j])
+    
+    min_distance=float("inf")
+    tour1_conn_point_index=-1
+    tour2_conn_point_index=-1
+    for i in range(len(tour1)):
+        for j in range(len(tour2)):
+            if distances[i,j] < min_distance:
+                min_distance=distances[i,j]
+                tour1_conn_point_index=i
+                tour2_conn_point_index=j
+    return tour1_conn_point_index,tour2_conn_point_index
+
+
+def calculate_four_costs(tour1_conn_point_index,tour2_conn_point_index,tour1_points,tour2_points, types):
+    if tour1_conn_point_index==0:
+        tour1_conn_point_pre_index=len(tour1_points)-1
+        tour1_conn_point_next_index=1
+    else:
+        tour1_conn_point_pre_index=tour1_conn_point_index-1
+        tour1_conn_point_next_index=(tour1_conn_point_index+1)%len(tour1_points)
+
+    if tour2_conn_point_index==0:
+        tour2_conn_point_pre_index=len(tour2_points)-1
+        tour2_conn_point_next_index=1
+    else:
+        tour2_conn_point_pre_index=tour2_conn_point_index-1
+        tour2_conn_point_next_index=(tour2_conn_point_index+1)%len(tour2_points)
+    
+    conn_points_distance=distance(tour1_points[tour1_conn_point_index],tour2_points[tour2_conn_point_index])
+    # p1--p distance; prev--p distance
+    tour1_pre_to_tour1_conn_point_dist=distance(tour1_points[tour1_conn_point_pre_index],tour1_points[tour1_conn_point_index])
+    # q1--q distance; prev--q distance
+    tour2_pre_to_tour2_conn_point_dist=distance(tour2_points[tour2_conn_point_pre_index],tour2_points[tour2_conn_point_index])
+    # p2--p distance; next--p distance
+    tour1_next_to_tour1_conn_point_dist=distance(tour1_points[tour1_conn_point_next_index],tour1_points[tour1_conn_point_index])
+    # q2--q distance; next--q distance
+    tour2_next_to_tour2_conn_point_dist=distance(tour2_points[tour2_conn_point_next_index],tour2_points[tour2_conn_point_index])
+
+    # calcuate four costs of merging two tours by the four options.
+    # first, next-next
+    another_new_edge_distance=distance(tour1_points[tour1_conn_point_next_index],tour2_points[tour2_conn_point_next_index]) 
+    distance_increase_01=conn_points_distance+another_new_edge_distance-tour1_next_to_tour1_conn_point_dist-tour2_next_to_tour2_conn_point_dist
+
+    # second, prev-prev
+    another_new_edge_distance=distance(tour1_points[tour1_conn_point_pre_index],tour2_points[tour2_conn_point_pre_index])
+    distance_increase_02=conn_points_distance+another_new_edge_distance-tour1_pre_to_tour1_conn_point_dist-tour2_pre_to_tour2_conn_point_dist
+
+    # third prev-next
+    another_new_edge_distance=distance(tour1_points[tour1_conn_point_pre_index],tour2_points[tour2_conn_point_next_index])
+    distance_increase_03=conn_points_distance+another_new_edge_distance-tour1_pre_to_tour1_conn_point_dist-tour2_next_to_tour2_conn_point_dist
+
+    # fourth next-prev
+    another_new_edge_distance=distance(tour1_points[tour1_conn_point_next_index],tour2_points[tour2_conn_point_pre_index])
+    distance_increase_04=conn_points_distance+another_new_edge_distance-tour1_next_to_tour1_conn_point_dist-tour2_pre_to_tour2_conn_point_dist
+    
+    costs=[distance_increase_01,distance_increase_02,distance_increase_03,distance_increase_04]
+
+    # next-next, prev-prev, prev-next, next-prev
+    return costs
+
 
 
 
 # two tours only contains the points coordincate, and already sort according to the visiting order.
 def merge_two_cluster_tours(cluster1,cluster2):
-    # param
-    #   cluster1: a dict, containing the following keys: ori_tsp_data, center, tour, duration,sorted_tsp_data
-    #   cluster2: a dict, containing the following keys: ori_tsp_data, center, tour, duration,sorted_tsp_data
+   
 
     tour1_points=cluster1["sorted_tsp_data"]
     tour2_points=cluster2["sorted_tsp_data"]
 
    
     original_point_count=len(tour1_points)+len(tour2_points)
+
+    tour1_conn_point_index,tour2_conn_point_index=find_nearest_inter_tour_nodes(tour1_points,tour2_points)
    
-
-    distances=np.zeros((len(tour1_points),len(tour2_points)))
-    for i in range(len(tour1_points)):
-        for j in range(len(tour2_points)):
-            distances[i,j]=distance(tour1_points[i],tour2_points[j])
-    
-    # find the closest pair of points
-    min_distance=float("inf")
-    tour1_conn_point_index=-1
-    tour2_conn_point_index=-1
-    for i in range(len(tour1_points)):
-        for j in range(len(tour2_points)):
-            if distances[i,j] < min_distance:
-                min_distance=distances[i,j]
-                tour1_conn_point_index=i
-                tour2_conn_point_index=j
-    
-
     # find the index of the pre point and the next point of tour1_conn_point_index in tour1_tour    
     if tour1_conn_point_index==0:
         tour1_conn_point_pre_index=len(tour1_points)-1
@@ -87,41 +160,16 @@ def merge_two_cluster_tours(cluster1,cluster2):
         tour2_conn_point_pre_index=tour2_conn_point_index-1
         tour2_conn_point_next_index=(tour2_conn_point_index+1)%len(tour2_points)
 
-    
-    conn_poinsts_distance=distance(tour1_points[tour1_conn_point_index],tour2_points[tour2_conn_point_index])
-    tour1_pre_to_tour1_conn_point_dist=distance(tour1_points[tour1_conn_point_pre_index],tour1_points[tour1_conn_point_index])
-    tour2_pre_to_tour2_conn_point_dist=distance(tour2_points[tour2_conn_point_pre_index],tour2_points[tour2_conn_point_index])
-    
-    # p2--p distance
-    tour1_next_to_tour1_conn_point_dist=distance(tour1_points[tour1_conn_point_next_index],tour1_points[tour1_conn_point_index])
-    # q2--q distance
-    tour2_next_to_tour2_conn_point_dist=distance(tour2_points[tour2_conn_point_next_index],tour2_points[tour2_conn_point_index])
-    
+    # merge two tours by two nodes, there are four options: next-next, prev-prev, prev-next, next-prev.
+    types=["next-next","prev-prev","prev-next","next-prev"]
+
+    costs=calculate_four_costs(tour1_conn_point_index,tour2_conn_point_index,tour1_points,tour2_points, types)
 
     
-    # the first possibility:
-    another_new_edge_distance=distance(tour1_points[tour1_conn_point_pre_index],tour2_points[tour2_conn_point_pre_index])
-    distance_increase_01=conn_poinsts_distance+another_new_edge_distance-tour1_pre_to_tour1_conn_point_dist-tour2_pre_to_tour2_conn_point_dist
-
-
-    # the second possibility:
-    another_new_edge_distance=distance(tour1_points[tour1_conn_point_next_index],tour2_points[tour2_conn_point_next_index])
-    distance_increase_02=conn_poinsts_distance+another_new_edge_distance-tour1_next_to_tour1_conn_point_dist-tour2_next_to_tour2_conn_point_dist
-
-    # the third possibility:
-    another_new_edge_distance=distance(tour1_points[tour1_conn_point_pre_index],tour2_points[tour2_conn_point_next_index]) 
-    distance_increase_03=conn_poinsts_distance+another_new_edge_distance-tour1_pre_to_tour1_conn_point_dist-tour2_next_to_tour2_conn_point_dist         
+    # find the minimum distance increase of costs.
+    min_distance_increase=min(costs)
+    min_distance_increase_index=costs.index(min_distance_increase)
     
-    # the fourth possibility:
-    another_new_edge_distance=distance(tour1_points[tour1_conn_point_next_index],tour2_points[tour2_conn_point_pre_index])
-    distance_increase_04=conn_poinsts_distance+another_new_edge_distance-tour1_next_to_tour1_conn_point_dist-tour2_pre_to_tour2_conn_point_dist
-
-
-    # find the minimum distance increase
-    distance_increases=[distance_increase_01,distance_increase_02,distance_increase_03,distance_increase_04]
-    min_distance_increase=min(distance_increases)
-    min_distance_increase_index=distance_increases.index(min_distance_increase)
-
 
     # merge the cluster1["ori_tsp_data"] and cluster2["ori_tsp_data"]
     ori_tsp_data=np.concatenate((cluster1["ori_tsp_data"],cluster2["ori_tsp_data"]),axis=0)
@@ -130,39 +178,10 @@ def merge_two_cluster_tours(cluster1,cluster2):
     new_cluster["ori_tsp_data"]=ori_tsp_data
 
     new_tour_points=[]
-    
+
+    ## merge_by_edges(cluster1, cluster2, tour1_conn_point_index,tour2_conn_point_index, bestType)
     if min_distance_increase_index==0:
-        # connect p and q, connect p1 and q1, remove p1--p connection, remove q1--q connection
-        new_tour_points.append(tour1_points[tour1_conn_point_index])
-        new_tour_points.append(tour2_points[tour2_conn_point_index])
-        if tour2_conn_point_index!=len(tour2_points)-1:
-            # append tour2 from q1 to tail
-            for i in range(tour2_conn_point_next_index,len(tour2_points)):
-                new_tour_points.append(tour2_points[i])
-            # append tour2 from head to q1
-            for i in range(0,tour2_conn_point_index):
-                new_tour_points.append(tour2_points[i])
-        else:
-            # append tour2 from q1 to tail
-            for i in range(tour2_conn_point_next_index,tour2_conn_point_index):
-                new_tour_points.append(tour2_points[i])
-
-        if tour1_conn_point_index !=0:
-            # append tour1 from p1 to head
-            for i in range(tour1_conn_point_pre_index,-1,-1):
-                new_tour_points.append(tour1_points[i])
-            # append tour1 from head to p
-            for i in range(len(tour1_points)-1,tour1_conn_point_index,-1):
-                new_tour_points.append(tour1_points[i])
-        else:
-            # append tour1 from p1 to head
-            for i in range(tour1_conn_point_pre_index,tour1_conn_point_index,-1):
-                new_tour_points.append(tour1_points[i])
-
-        
-    
-    elif min_distance_increase_index==1:
-        # connect p and q, connect p2 and q2, remove p2--p connection, remove q2--q connection
+        # next-next connection
         new_tour_points.append(tour1_points[tour1_conn_point_index])
         new_tour_points.append(tour2_points[tour2_conn_point_index])
 
@@ -191,9 +210,38 @@ def merge_two_cluster_tours(cluster1,cluster2):
             for i in range(tour1_conn_point_next_index,tour1_conn_point_index):
                 new_tour_points.append(tour1_points[i])
 
-      
+    elif min_distance_increase_index==1:
+        # prev-prev connection
+
+        new_tour_points.append(tour1_points[tour1_conn_point_index])
+        new_tour_points.append(tour2_points[tour2_conn_point_index])
+        if tour2_conn_point_index!=len(tour2_points)-1:
+            # append tour2 from q1 to tail
+            for i in range(tour2_conn_point_next_index,len(tour2_points)):
+                new_tour_points.append(tour2_points[i])
+            # append tour2 from head to q1
+            for i in range(0,tour2_conn_point_index):
+                new_tour_points.append(tour2_points[i])
+        else:
+            # append tour2 from q1 to tail
+            for i in range(tour2_conn_point_next_index,tour2_conn_point_index):
+                new_tour_points.append(tour2_points[i])
+
+        if tour1_conn_point_index !=0:
+            # append tour1 from p1 to head
+            for i in range(tour1_conn_point_pre_index,-1,-1):
+                new_tour_points.append(tour1_points[i])
+            # append tour1 from head to p
+            for i in range(len(tour1_points)-1,tour1_conn_point_index,-1):
+                new_tour_points.append(tour1_points[i])
+        else:
+            # append tour1 from p1 to head
+            for i in range(tour1_conn_point_pre_index,tour1_conn_point_index,-1):
+                new_tour_points.append(tour1_points[i])
+
+
     elif min_distance_increase_index==2:
-        # connect p and q, connect p1 and q2, remove p1--p connection, remove q2--q connection
+        # prev-next connection
         new_tour_points.append(tour1_points[tour1_conn_point_index])
         new_tour_points.append(tour2_points[tour2_conn_point_index])
 
@@ -220,9 +268,8 @@ def merge_two_cluster_tours(cluster1,cluster2):
             # append tour1 from p1 to head (index =0, include head)
             for i in range(tour1_conn_point_pre_index,tour1_conn_point_index,-1):
                 new_tour_points.append(tour1_points[i]) 
-    
-    elif min_distance_increase_index==3:
-        # connect p and q, connect p2 and q1, remove p2--p connection, remove q1--q connection
+    else:
+        # next-prev connection
         new_tour_points.append(tour1_points[tour1_conn_point_index])
         new_tour_points.append(tour2_points[tour2_conn_point_index])
 

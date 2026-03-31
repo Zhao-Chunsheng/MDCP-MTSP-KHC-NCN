@@ -20,7 +20,6 @@ from merge_sub_tsps import merge_sub_tsps
 from argparse import Namespace
 
 
-# tsp_data is a 2d np.array,like [[x,y],[x,y],...],save the coordinates of the TSP nodes.
 def solve_one_tsp_by_end2end_model(tsp_data,model,opts,normalize=True):
     tmp_tsp_data=np.copy(tsp_data)
 
@@ -69,16 +68,15 @@ def make_opts(**overrides):
         val_size=1,
         offset=0,
         eval_batch_size=1,
-        width=None,  # e.g., [0] to disable, [-1] for infinite, [64] for 64-beam
+        width=None,  
         decode_strategy='greedy',
-        softmax_temperature=1,  # or 1.0 if used as float
+        softmax_temperature=1,  
         model="end2end_model/kool2019/pretrained/tsp_20/epoch-99.pt",
         no_cuda=True,
         no_progress_bar=False,
         compress_mask=False,
         max_calc_batch_size=1,
-        results_dir='results',
-        # add any other args you use later, e.g. datasets=None
+        results_dir='results'
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -114,7 +112,7 @@ def solve_mtsp_by_end2end_model(tsps_list,model_path,model_size,size_scale_facto
             elif cluster_algo=="k_means++" or cluster_algo=="kmeans++" or cluster_algo=="k-means++":
                 # use k_means++ to cluster tsp into k parts.
                 clusters=k_means_plusplus_clustering_sklearn(tsp, k, max_iterations, n_jobs)
-                ### Tuning the clusters, make sure there is no cluster that only contains one point.
+                ### refine the clusters, make sure there is no cluster that only contains one point.
                 clusters=cluster_tuning_for_one_node_cluster(clusters,False)
             else:
                 print("!!! cluster_algo is not supported!")
@@ -139,10 +137,4 @@ def solve_mtsp_by_end2end_model(tsps_list,model_path,model_size,size_scale_facto
     # a list, each element is a 2d np.array, which is a tour of a sub tsp.
     return mtsp_subtsp_tour_list
 
-
-
-
-if __name__ == "__main__":
-
-    pass
 
