@@ -14,7 +14,7 @@ from tools import HyperparametersConfig, TSP_tour_distance
 
 
 
-def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list,alpha,log_tag,doLevel2Clustering=True):
+def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list,alpha,log_tag,doLevel2Clustering=True, random_seed=1234):
     if None == data_file:
         print("data_file is None. return None")
         return None
@@ -57,7 +57,7 @@ def solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list
 
                 ### load data only once. 
                 data=np.array(data)
-                random_seed=int(time.time())
+                
                 clusters=k_means_plusplus_clustering_sklearn(data, k, max_iterations=config.max_clustering_iter, n_jobs=config.n_jobs, random_seed=random_seed)
                 ### Refine clusters by resolving singletons
                 clusters=cluster_tuning_for_one_node_cluster(clusters,True)
@@ -173,6 +173,10 @@ if __name__ == "__main__":
         "--k_list", "-k", required=True, nargs='+',type=int, 
         help="List of cluster sizes, e.g. -k 2 3 4 5"
     )
+    parser.add_argument(
+        "--random_seed", "-r", required=False,type=int, 
+        help="RandomSeed, e.g. 1234; default: None, meaning random"
+    )
 
     args = parser.parse_args()
 
@@ -185,11 +189,17 @@ if __name__ == "__main__":
     print("data_file:", data_file)
     print("k_list:", k_list)
 
-    
+    if args.random_seed is not None:
+        random_seed=args.random_seed
+        print("random_seed:", random_seed)
+    else:
+        print("random_seed: default, using system time.")
+        random_seed=int(time.time())
+
     pure_data_file_name=data_file.split("/")[-1].split(".")[0]
     
     k_list_str="_".join([str(k) for k in k_list])
     log_tag="{}_TSP{}Model_k_{}_multi_deposit_level2Clustering".format(pure_data_file_name, standard_cluster_size, k_list_str)
 
-    solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list,alpha,log_tag,doLevel2Clustering=True)
+    solve_one_MTSP_with_different_K(data_file,model,standard_cluster_size,k_list,alpha,log_tag,doLevel2Clustering=True, random_seed=random_seed)
     
